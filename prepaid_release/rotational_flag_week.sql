@@ -1,4 +1,6 @@
--- Runs every month to get rotational_flag
+-- Script to obtain rotational_flag feature
+-- Frequency:   1. for a specific week (Sun - Sat)
+--				2. User input
 
 CREATE VOLATILE TABLE prepaid_rotational_flag_week AS(
 SEL
@@ -91,6 +93,21 @@ from (
 	and base.prd_dt = rot.prd_week
 	and base.prd_type_cd = 'week'
 ) a
+
+-- option 2: create a new col in Aupr_Bus_View.Cmpst_prepay_Active_hist
+--ALTER TABLE Aupr_Bus_View.Cmpst_prepay_Active_hist
+--ADD rotational_flag INT;
+
+--Update Aupr_Bus_View.Cmpst_prepay_Active_hist
+--FROM (
+--	SELECT subs_id, prd_week, prd_type_cd,rotational_flag
+--	from prepaid_rotational_flag_week
+--) b
+--set rotational_flag = b.prepaid_rotational_flag
+--where Aupr_Bus_View.Cmpst_prepay_Active_hist.subs_id = b.subs_id
+--and Aupr_Bus_View.Cmpst_prepay_Active_hist.prd_dt = rot.prd_week
+--and Aupr_Bus_View.Cmpst_prepay_Active_hist.prd_type_cd = 'week'
+
 
 
 

@@ -1,8 +1,8 @@
 -- Runs every month to get rotational_flag
 
-CREATE VOLATILE TABLE prepaid_rotational_flag AS(
+CREATE VOLATILE TABLE prepaid_rotational_flag_week AS(
 SEL
-        Last_Day(prd_dt - Extract(DAY From prd_dt)) prd_month
+        NEXT_DAY(prd_dt, 'SUNDAY') prd_week -- reporting for previous week 
         ,subs_id
         ,CURR_dvc_imei_id
         ,CASE WHEN Sum(CASE WHEN prev_Sub IS NOT NULL THEN 1 ELSE 0 END) > 0 THEN 1 ELSE 0 END AS Rotational_flag
@@ -29,7 +29,7 @@ SEL
             ) THEN 1 ELSE 0 END AS trav_flag
 
             FROM
-            (SELECT prd_dt, subs_id FROM cust_knowledge_db.ow_prepaid_agg_daily WHERE prd_dt BETWEEN Current_Date - 30 AND Current_Date GROUP BY 1,2) conn
+            	(SELECT prd_dt, subs_id FROM cust_knowledge_db.ow_prepaid_agg_daily WHERE prd_dt BETWEEN '2022-05-29' AND '2022-06-04' GROUP BY 1,2) conn -- change time range for week in concern (Sun - Sat)
             INNER JOIN AUPR_BUS_VIEW.DIM_SUBS AS DS
             ON conn.SUBS_ID = DS.SUBS_ID
             AND conn.PRD_DT BETWEEN DS.DIM_START_DT AND DS.DIM_END_DT
@@ -50,8 +50,8 @@ SEL
 
             LEFT JOIN Aupr_Bus_View.Cmpst_prepay_Active_hist ah
             ON conn.subs_id = ah.subs_id
-            AND Last_Day(conn.prd_dt - Extract(DAY From conn.prd_dt)) = ah.prd_dt
-            AND ah.Prd_Type_Cd = 'month'
+            AND NEXT_DAY(conn.prd_dt, 'SUNDAY') = ah.prd_dt -- reporting for previous week 
+            AND ah.Prd_Type_Cd = 'week'
             AND Coalesce(ah.PLAN_TYPE_CD,'Handset')  ='Handset'
             AND ah.ACCT_TYPE_CD ='Prepay'
 
@@ -60,9 +60,9 @@ SEL
         WHERE
         subs_id IN (SELECT subs_id FROM Aupr_Bus_View.Cmpst_prepay_Active_hist
                         WHERE
-                        prd_dt >=Current_Date - 31 -- FP
+                        prd_dt >=Current_Date - 7 -- FP
                         )
-        QUALIFY Row_Number() Over(PARTITION BY subs_id, prd_month ORDER BY Rotational_flag DESC) = 1
+        QUALIFY Row_Number() Over(PARTITION BY subs_id, prd_week ORDER BY Rotational_flag DESC) = 1
         GROUP BY 1,2,3
 )
 
@@ -70,13 +70,15 @@ WITH DATA
 PRIMARY INDEX(subs_id)
 ON COMMIT PRESERVE ROWS ;
 
---testing
+-- testing
 select top 10 * 
-from prepaid_rotational_flag
+from prepaid_rotational_flag_week
 
-select top 10 *
-from Aupr_Bus_View.Cmpst_prepay_Active_hist AS base
-where base.prd_type_cd = 'week';
+select distinct prd_week
+from prepaid_rotational_flag_week
+
+select count(*)
+from prepaid_rotational_flag_week
 
 -- option 1: join to create temp table
 select count(1)
@@ -84,23 +86,17 @@ from (
 	select 
 		base.*, rot.rotational_flag
 	from Aupr_Bus_View.Cmpst_prepay_Active_hist AS base
-	inner join prepaid_rotational_flag AS rot
+	inner join prepaid_rotational_flag_week AS rot
 	on base.subs_id = rot.subs_id
-	and base.prd_dt = rot.prd_month
-	and base.prd_type_cd = 'MONTH'
+	and base.prd_dt = rot.prd_week
+	and base.prd_type_cd = 'week'
 ) a
 
--- option 2: create a new col in Aupr_Bus_View.Cmpst_prepay_Active_hist
---ALTER TABLE Aupr_Bus_View.Cmpst_prepay_Active_hist
---ADD rotational_flag INT;
 
---Update Aupr_Bus_View.Cmpst_prepay_Active_hist
---FROM (
---	SELECT subs_id, prd_month, prd_type_cd,rotational_flag
---	from prepaid_rotational_flag
---) b
---set rotational_flag = b.prepaid_rotational_flag
---where Aupr_Bus_View.Cmpst_prepay_Active_hist.subs_id = b.subs_id
---and Aupr_Bus_View.Cmpst_prepay_Active_hist.prd_month = rot.prd_month
---and Aupr_Bus_View.Cmpst_prepay_Active_hist.prd_type_cd = 'MONTH'
+
+
+
+
+
+
 

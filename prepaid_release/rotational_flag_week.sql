@@ -58,10 +58,10 @@ SEL
             WHERE 1=1 -- where TRUE
         ) AS a
         WHERE
-        subs_id IN (SELECT subs_id FROM Aupr_Bus_View.Cmpst_prepay_Active_hist
-                        WHERE
-                        prd_dt >=Current_Date - 7 -- FP
-                        )
+        subs_id IN (SELECT subs_id 
+        				FROM Aupr_Bus_View.Cmpst_prepay_Active_hist
+                    WHERE prd_dt BETWEEN '2022-05-29' AND '2022-06-04' -- change time range for week in concern (Sun - Sat)
+                    )
         QUALIFY Row_Number() Over(PARTITION BY subs_id, prd_week ORDER BY Rotational_flag DESC) = 1
         GROUP BY 1,2,3
 )
@@ -81,7 +81,7 @@ select count(*)
 from prepaid_rotational_flag_week
 
 -- option 1: join to create temp table
-select count(1)
+select *
 from (
 	select 
 		base.*, rot.rotational_flag
